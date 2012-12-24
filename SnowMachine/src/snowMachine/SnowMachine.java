@@ -1,5 +1,6 @@
 package snowMachine;
 
+import controlP5.*;
 import processing.core.PApplet;
 
 public class SnowMachine extends PApplet
@@ -11,10 +12,22 @@ public class SnowMachine extends PApplet
 	float shoulderLength = 7;    // shoulder length
 	int recursions = 7;       //ilo\u015b\u0107 recursion
 
-	int symmetricalDivisions = 6;
-	private long seed;
+	int primaryBranches = 6;
+	private int seed;
 	private int currentRecursions = 1;
 	private int velocity = 1;
+	private boolean isAnimated = true;
+
+	ControlP5 cp5;
+
+	Accordion accordion;
+	private Slider currentRecursionsSlider;
+	private Slider seedSlider;
+	private int primaryBranchesBase = 6;
+	private int primaryBranchesVariation = 0;
+	private int subBranchesBase = 2;
+	private int subBranchesVariation = 6;
+	private boolean guiInitialized = false;
 
 	public void setup()
 	{
@@ -24,80 +37,228 @@ public class SnowMachine extends PApplet
 		smooth();
 		fill(255);
 		frameRate(29);
-		drawPlates(width / 2, height / 2, armLength, shoulderLength, symmetricalDivisions, recursions);
+		drawBranches(width / 2, height / 2, armLength, shoulderLength, primaryBranches, recursions);
+		gui();
+	}
+
+	void gui()
+	{
+		cp5 = new ControlP5(this);
+
+		Group complexityGroup = cp5.addGroup("Complexity")
+				.setBackgroundColor(color(0, 64))
+//				.setBackgroundHeight(39)
+				;
+
+		cp5.addToggle("Animate")
+				.setPosition(10, 10)
+				.moveTo(complexityGroup)
+				.setValue(isAnimated())
+				.plugTo(this, "setAnimated");
+
+		currentRecursionsSlider = cp5.addSlider("currentRecursions")
+				.setPosition(10, 50)
+				.moveTo(complexityGroup)
+				.setRange(1, recursions);
+
+//		complexityGroup.setBackgroundHeight((int) currentRecursionsSlider.getPosition().y + currentRecursionsSlider.getHeight());
+
+		Group appearanceGroup = cp5.addGroup("Appearance")
+				.setBackgroundColor(color(0, 64))
+				.setBackgroundHeight(150);
+
+		cp5.addButton("resetSeed")
+				.setPosition(10, 10)
+				.setSize(80, 20)
+				.moveTo(appearanceGroup)
+		;
+
+		Controller previousControl;
+		previousControl = seedSlider = cp5.addSlider("seed")
+				.setPosition(10, 40)
+//				.setSize(150, 20)
+				.setRange(0, 100000)
+				.moveTo(appearanceGroup);
+
+		previousControl = cp5.addSlider("primaryBranchesBase")
+				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
+				.setRange(2, 12)
+				.moveTo(appearanceGroup);
+
+		previousControl = cp5.addSlider("primaryBranchesVariation")
+				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
+				.setRange(0, 12)
+				.moveTo(appearanceGroup)
+		;
+
+		previousControl = cp5.addSlider("subBranchesBase")
+				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
+				.setRange(2, 12)
+				.moveTo(appearanceGroup);
+
+		previousControl = cp5.addSlider("subBranchesVariation")
+				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
+				.setRange(0, 12)
+				.moveTo(appearanceGroup)
+		;
+
+		// create a new accordion
+		// add g1, g2, and appearanceGroup to the accordion.
+		accordion = cp5.addAccordion("acc")
+				.setPosition(40, 40)
+				.setWidth(250)
+				.addItem(complexityGroup)
+				.addItem(appearanceGroup)
+		;
+
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				accordion.open(0, 1, 2);
+			}
+		}, 'o');
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				accordion.close(0, 1, 2);
+			}
+		}, 'c');
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				accordion.setWidth(300);
+			}
+		}, '1');
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				accordion.setPosition(0, 0);
+				accordion.setItemHeight(190);
+			}
+		}, '2');
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				accordion.setCollapseMode(ControlP5.ALL);
+			}
+		}, '3');
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				accordion.setCollapseMode(ControlP5.SINGLE);
+			}
+		}, '4');
+		cp5.mapKeyFor(new ControlKey()
+		{
+			public void keyEvent()
+			{
+				cp5.remove("myGroup1");
+			}
+		}, '0');
+
+		accordion.open(0, 1, 2);
+
+		// use Accordion.MULTI to allow multiple group
+		// to be open at a time.
+		accordion.setCollapseMode(Accordion.MULTI);
+
+		// when in SINGLE mode, only 1 accordion
+		// group can be open at a time.
+		// accordion.setCollapseMode(Accordion.SINGLE);
+
+		cp5.loadProperties(("settings.ser"));
+		guiInitialized = true;
+	}
+
+	public void controlEvent(ControlEvent event)
+	{
+//		println("got a control event from controller with id " + event.getController().getId());
+		if (guiInitialized)
+		{
+			cp5.saveProperties(("settings.ser"));
+		}
 	}
 
 	public void draw()
 	{
-		randomSeed(seed);
+		randomSeed(getSeed());
 		background(0);
-		symmetricalDivisions = 6;
+		primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
 
-		drawPlates(width / 2, height / 2, armLength, shoulderLength, symmetricalDivisions, currentRecursions);
+		drawBranches(width / 2, height / 2, armLength, shoulderLength, primaryBranches, getCurrentRecursions());
 
-		currentRecursions += velocity;
-		if (currentRecursions > recursions)
+		if (isAnimated())
 		{
-			currentRecursions = recursions;
-			velocity = -1;
-		}
-		if (currentRecursions < 1)
-		{
-			currentRecursions = 1;
-			velocity = 1;
+			int newCurrentRecursions = getCurrentRecursions() + velocity;
+			if (newCurrentRecursions > recursions)
+			{
+				newCurrentRecursions = recursions;
+				velocity = -1;
+			}
+			if (newCurrentRecursions < 1)
+			{
+				newCurrentRecursions = 1;
+				velocity = 1;
+			}
+			setCurrentRecursions(newCurrentRecursions);
 		}
 	}
 
-	public void mousePressed()
+	public void resetSeed()
 	{
-		currentRecursions = 1;
-		seed = (long) random(0, 1024);
+//		setCurrentRecursions(isAnimated() ? 1 : recursions);
+		setSeed(millis());
 	}
 
-	public void drawPlates(float X1, float Y1, float H, float B, int symmetricalDivisions, int inRecursions)
+	public void drawBranches(float x1, float y1, float H, float B, int symmetricalDivisions, int inRecursions)
 	{
-		int[] plateSymmetricalDivisions = new int[inRecursions];
-		float[] plateWidths = new float[inRecursions];
-		float[] plateHeights = new float[inRecursions];
-		float[] plateAlphas = new float[inRecursions];
+		int[] branchSymmetricalDivisions = new int[inRecursions];
+		float[] branchWidths = new float[inRecursions];
+		float[] branchHeights = new float[inRecursions];
+		float[] branchAlphas = new float[inRecursions];
 
-		plateSymmetricalDivisions[inRecursions - 1] = symmetricalDivisions;
-		plateWidths[inRecursions - 1] = H;
-		plateHeights[inRecursions - 1] = B;
-		plateAlphas[inRecursions - 1] = 0;
+		branchSymmetricalDivisions[inRecursions - 1] = symmetricalDivisions;
+		branchWidths[inRecursions - 1] = H;
+		branchHeights[inRecursions - 1] = B;
+		branchAlphas[inRecursions - 1] = 0;
 
 		for (int i = inRecursions - 2; i >= 0; i--)
 		{
-			plateSymmetricalDivisions[i] = PApplet.parseInt(random(6) + 2);
-			plateWidths[i] = plateWidths[i + 1] * random(0.5f, 0.7f);
-			plateHeights[i] = plateHeights[i + 1] * random(0.4f, 0.5f);
-			plateAlphas[i] = random(HALF_PI, PI - HALF_PI / 2);
-			print(i + ": " + plateSymmetricalDivisions[i] + " " + plateWidths[i] + " " + plateHeights[i] + " " + plateAlphas[i] + "\n");
+			branchSymmetricalDivisions[i] = PApplet.parseInt(random(subBranchesVariation) + subBranchesBase);
+			branchWidths[i] = branchWidths[i + 1] * random(0.5f, 0.7f);
+			branchHeights[i] = branchHeights[i + 1] * random(0.4f, 0.5f);
+			branchAlphas[i] = random(HALF_PI, PI - HALF_PI / 2);
+//			print(i + ": " + branchSymmetricalDivisions[i] + " " + branchWidths[i] + " " + branchHeights[i] + " " + branchAlphas[i] + "\n");
 		}
-		drawPlatesRecursive(X1, Y1, plateWidths, plateHeights, plateAlphas, plateSymmetricalDivisions, inRecursions);
+		drawBranchesRecursive(x1, y1, branchWidths, branchHeights, branchAlphas, branchSymmetricalDivisions, inRecursions);
 	}
 
-	public void drawPlatesRecursive(float X1, float Y1, float plateWidths[], float plateHeights[], float plateAlphas[],
-									int plateSymmetricalDivisions[], int inRecursions)
+	public void drawBranchesRecursive(float branchX, float branchY, float branchWidths[], float branchHeights[], float branchAlphas[],
+									int branchSymmetricalDivisions[], int inRecursions)
 	{
 		inRecursions--;
-		if (inRecursions + 1 > 0 && plateSymmetricalDivisions[inRecursions] != 0)
+		if (inRecursions + 1 > 0 && branchSymmetricalDivisions[inRecursions] != 0)
 		{
 			float alpha;
-			if (plateAlphas[inRecursions] == 0)
-				alpha = (TWO_PI - plateAlphas[inRecursions]) / (plateSymmetricalDivisions[inRecursions]);
+			if (branchAlphas[inRecursions] == 0)
+				alpha = (TWO_PI - branchAlphas[inRecursions]) / (branchSymmetricalDivisions[inRecursions]);
 			else
-				alpha = (TWO_PI - plateAlphas[inRecursions]) / (plateSymmetricalDivisions[inRecursions] - 1);
+				alpha = (TWO_PI - branchAlphas[inRecursions]) / (branchSymmetricalDivisions[inRecursions] - 1);
 
 			pushMatrix();
-			translate(X1, Y1);
-			rotate(-(TWO_PI - plateAlphas[inRecursions]) / 2);
-			for (int i = 0; i < plateSymmetricalDivisions[inRecursions]; i++)
+			translate(branchX, branchY);
+			rotate(-(TWO_PI - branchAlphas[inRecursions]) / 2);
+			for (int i = 0; i < branchSymmetricalDivisions[inRecursions]; i++)
 			{
-
-				rect(0, -plateHeights[inRecursions] / 2, plateWidths[inRecursions], plateHeights[inRecursions]);
-				drawPlatesRecursive(plateWidths[inRecursions], 0, plateWidths, plateHeights, plateAlphas,
-									plateSymmetricalDivisions, inRecursions);
+				rect(0, -branchHeights[inRecursions] / 2, branchWidths[inRecursions], branchHeights[inRecursions]);
+				drawBranchesRecursive(branchWidths[inRecursions], 0, branchWidths, branchHeights, branchAlphas,
+									branchSymmetricalDivisions, inRecursions);
 				rotate(alpha);
 			}
 			popMatrix();
@@ -106,13 +267,55 @@ public class SnowMachine extends PApplet
 
 	static public void main(String[] passedArgs)
 	{
-		String[] appletArgs = new String[]{"SnowMachine"};
+		String[] appletArgs = new String[]{"snowMachine.SnowMachine"};
 		if (passedArgs != null)
 		{
 			PApplet.main(concat(appletArgs, passedArgs));
 		} else
 		{
 			PApplet.main(appletArgs);
+		}
+	}
+
+	public boolean isAnimated()
+	{
+		return isAnimated;
+	}
+
+	public void setAnimated(boolean animated)
+	{
+		isAnimated = animated;
+		if (!isAnimated())
+		{
+			setCurrentRecursions(recursions);
+		}
+	}
+
+	public int getCurrentRecursions()
+	{
+		return currentRecursions;
+	}
+
+	public void setCurrentRecursions(int currentRecursions)
+	{
+		this.currentRecursions = currentRecursions;
+		if (currentRecursionsSlider != null)
+		{
+			currentRecursionsSlider.setValue(currentRecursions);
+		}
+	}
+
+	public int getSeed()
+	{
+		return seed;
+	}
+
+	public void setSeed(int seed)
+	{
+		this.seed = seed;
+		if (seedSlider != null)
+		{
+			seedSlider.setValue(seed);
 		}
 	}
 }

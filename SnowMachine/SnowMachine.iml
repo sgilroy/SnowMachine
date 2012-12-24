@@ -9,6 +9,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="processing-2.0" level="application" />
     <orderEntry type="library" name="processing-2.0-amd64" level="application" />
+    <orderEntry type="library" name="controlP5" level="application" />
   </component>
 </module>
 
