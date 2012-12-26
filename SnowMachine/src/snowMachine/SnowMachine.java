@@ -2,6 +2,12 @@ package snowMachine;
 
 import controlP5.*;
 import processing.core.PApplet;
+import processing.core.PFont;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Map;
 
 public class SnowMachine extends PApplet
 {
@@ -39,76 +45,80 @@ public class SnowMachine extends PApplet
 		frameRate(29);
 		drawBranches(width / 2, height / 2, armLength, shoulderLength, primaryBranches, recursions);
 		gui();
+		createValuePropertySet();
 	}
 
 	void gui()
 	{
 		cp5 = new ControlP5(this);
 
+		// change the default font to Verdana
+		PFont p = createFont("Verdana", 10);
+//		cp5.setFont(p);
+		cp5.setAutoAddDirection(ControlP5Constants.VERTICAL);
+
 		Group complexityGroup = cp5.addGroup("Complexity")
 				.setBackgroundColor(color(0, 64))
-//				.setBackgroundHeight(39)
 				;
 
+		cp5.begin(complexityGroup, 10, 10);
+
 		cp5.addToggle("Animate")
-				.setPosition(10, 10)
-				.moveTo(complexityGroup)
 				.setValue(isAnimated())
-				.plugTo(this, "setAnimated");
+				.plugTo(this, "setAnimated")
+				.linebreak()
+		;
 
 		currentRecursionsSlider = cp5.addSlider("currentRecursions")
-				.setPosition(10, 50)
-				.moveTo(complexityGroup)
 				.setRange(1, recursions);
-
-//		complexityGroup.setBackgroundHeight((int) currentRecursionsSlider.getPosition().y + currentRecursionsSlider.getHeight());
 
 		Group appearanceGroup = cp5.addGroup("Appearance")
 				.setBackgroundColor(color(0, 64))
 				.setBackgroundHeight(150);
 
+		cp5.begin(appearanceGroup, 10, 10);
+
 		cp5.addButton("resetSeed")
-				.setPosition(10, 10)
-				.setSize(80, 20)
-				.moveTo(appearanceGroup)
+				.linebreak()
 		;
 
 		Controller previousControl;
 		previousControl = seedSlider = cp5.addSlider("seed")
-				.setPosition(10, 40)
-//				.setSize(150, 20)
 				.setRange(0, 100000)
-				.moveTo(appearanceGroup);
+		;
 
 		previousControl = cp5.addSlider("primaryBranchesBase")
-				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
-				.setRange(2, 12)
-				.moveTo(appearanceGroup);
+				.setRange(1, 12)
+		;
 
 		previousControl = cp5.addSlider("primaryBranchesVariation")
-				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
 				.setRange(0, 12)
-				.moveTo(appearanceGroup)
 		;
 
 		previousControl = cp5.addSlider("subBranchesBase")
-				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
-				.setRange(2, 12)
-				.moveTo(appearanceGroup);
-
-		previousControl = cp5.addSlider("subBranchesVariation")
-				.setPosition(previousControl.getPosition().x, previousControl.getPosition().y + 15)
-				.setRange(0, 12)
-				.moveTo(appearanceGroup)
+				.setRange(1, 12)
 		;
 
-		// create a new accordion
-		// add g1, g2, and appearanceGroup to the accordion.
+		previousControl = cp5.addSlider("subBranchesVariation")
+				.setRange(0, 12)
+		;
+
+		Group fileGroup = cp5.addGroup("File")
+				.setBackgroundColor(color(0, 64))
+				;
+
+		cp5.begin(fileGroup, 10, 10);
+
+		cp5.addButton("save")
+				.setSize(80, 20)
+		;
+
 		accordion = cp5.addAccordion("acc")
 				.setPosition(40, 40)
 				.setWidth(250)
 				.addItem(complexityGroup)
 				.addItem(appearanceGroup)
+				.addItem(fileGroup)
 		;
 
 		cp5.mapKeyFor(new ControlKey()
@@ -172,7 +182,7 @@ public class SnowMachine extends PApplet
 		// group can be open at a time.
 		// accordion.setCollapseMode(Accordion.SINGLE);
 
-		cp5.loadProperties(("settings.ser"));
+		cp5.loadProperties("settings.ser");
 		guiInitialized = true;
 	}
 
@@ -181,7 +191,31 @@ public class SnowMachine extends PApplet
 //		println("got a control event from controller with id " + event.getController().getId());
 		if (guiInitialized)
 		{
-			cp5.saveProperties(("settings.ser"));
+			cp5.saveProperties("settings.ser", getValuePropertySetName());
+		}
+	}
+
+	public void save()
+	{
+		cp5.saveProperties("snowflake-" + (new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss")).format(new Date()) + ".ser",
+						   getValuePropertySetName());
+	}
+
+	private String getValuePropertySetName()
+	{
+		return "value";
+	}
+
+	private void createValuePropertySet()
+	{
+		ControllerProperties properties = cp5.getProperties();
+		properties.addSet("value");
+		for (ControllerProperty controllerProperty : properties.get().keySet())
+		{
+			if (controllerProperty.toString().endsWith("Value"))
+			{
+				properties.copy(controllerProperty, "value");
+			}
 		}
 	}
 
@@ -236,11 +270,13 @@ public class SnowMachine extends PApplet
 			branchAlphas[i] = random(HALF_PI, PI - HALF_PI / 2);
 //			print(i + ": " + branchSymmetricalDivisions[i] + " " + branchWidths[i] + " " + branchHeights[i] + " " + branchAlphas[i] + "\n");
 		}
-		drawBranchesRecursive(x1, y1, branchWidths, branchHeights, branchAlphas, branchSymmetricalDivisions, inRecursions);
+		drawBranchesRecursive(x1, y1, branchWidths, branchHeights, branchAlphas, branchSymmetricalDivisions,
+							  inRecursions);
 	}
 
-	public void drawBranchesRecursive(float branchX, float branchY, float branchWidths[], float branchHeights[], float branchAlphas[],
-									int branchSymmetricalDivisions[], int inRecursions)
+	public void drawBranchesRecursive(float branchX, float branchY, float branchWidths[], float branchHeights[],
+									  float branchAlphas[],
+									  int branchSymmetricalDivisions[], int inRecursions)
 	{
 		inRecursions--;
 		if (inRecursions + 1 > 0 && branchSymmetricalDivisions[inRecursions] != 0)
@@ -258,7 +294,7 @@ public class SnowMachine extends PApplet
 			{
 				rect(0, -branchHeights[inRecursions] / 2, branchWidths[inRecursions], branchHeights[inRecursions]);
 				drawBranchesRecursive(branchWidths[inRecursions], 0, branchWidths, branchHeights, branchAlphas,
-									branchSymmetricalDivisions, inRecursions);
+									  branchSymmetricalDivisions, inRecursions);
 				rotate(alpha);
 			}
 			popMatrix();
