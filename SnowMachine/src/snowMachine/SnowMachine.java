@@ -6,16 +6,21 @@ import processing.core.PFont;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.Map;
 
 public class SnowMachine extends PApplet
 {
 
 	/* OpenProcessing Tweak of *@*http://www.openprocessing.org/sketch/54745*@* */
 /* !do not delete the line above, required for linking your tweak if you re-upload */
-	float armLength = 140;  // arm length
-	float shoulderLength = 7;    // shoulder length
+	float branchLengthBase = 110;
+	float branchLengthVariation = 50;
+	float branchWidthBase = 7;
+	float branchWidthVariation = 3;
+	float branchLengthScaleBase = 0.5f;
+	float branchLengthScaleVariation = 0.2f;
+	float branchWidthScaleBase = 0.4f;
+	float branchWidthScaleVariation = 0.1f;
+
 	int recursions = 7;       //ilo\u015b\u0107 recursion
 
 	int primaryBranches = 6;
@@ -31,9 +36,11 @@ public class SnowMachine extends PApplet
 	private Slider seedSlider;
 	private int primaryBranchesBase = 6;
 	private int primaryBranchesVariation = 0;
-	private int subBranchesBase = 2;
-	private int subBranchesVariation = 6;
+	private int subBranchesBase = 3;
+	private int subBranchesVariation = 0;
 	private boolean guiInitialized = false;
+	private float alphaVariation = 0; // old value: HALF_PI;
+	private float alphaBase = PI * 2 / 3;
 
 	public void setup()
 	{
@@ -43,7 +50,7 @@ public class SnowMachine extends PApplet
 		smooth();
 		fill(255);
 		frameRate(29);
-		drawBranches(width / 2, height / 2, armLength, shoulderLength, primaryBranches, recursions);
+//		drawBranches(width / 2, height / 2, branchLengthBase, branchWidthBase, primaryBranches, recursions);
 		gui();
 		createValuePropertySet();
 	}
@@ -58,8 +65,7 @@ public class SnowMachine extends PApplet
 		cp5.setAutoAddDirection(ControlP5Constants.VERTICAL);
 
 		Group complexityGroup = cp5.addGroup("Complexity")
-				.setBackgroundColor(color(0, 64))
-				;
+				.setBackgroundColor(color(0, 64));
 
 		cp5.begin(complexityGroup, 10, 10);
 
@@ -74,7 +80,8 @@ public class SnowMachine extends PApplet
 
 		Group appearanceGroup = cp5.addGroup("Appearance")
 				.setBackgroundColor(color(0, 64))
-				.setBackgroundHeight(150);
+//				.setBackgroundHeight(150)
+				;
 
 		cp5.begin(appearanceGroup, 10, 10);
 
@@ -82,30 +89,38 @@ public class SnowMachine extends PApplet
 				.linebreak()
 		;
 
-		Controller previousControl;
-		previousControl = seedSlider = cp5.addSlider("seed")
+		seedSlider = cp5.addSlider("seed")
 				.setRange(0, 100000)
 		;
 
-		previousControl = cp5.addSlider("primaryBranchesBase")
+		cp5.addSlider("primaryBranchesBase")
 				.setRange(1, 12)
 		;
 
-		previousControl = cp5.addSlider("primaryBranchesVariation")
+		cp5.addSlider("primaryBranchesVariation")
 				.setRange(0, 12)
 		;
 
-		previousControl = cp5.addSlider("subBranchesBase")
+		cp5.addSlider("subBranchesBase")
 				.setRange(1, 12)
 		;
 
-		previousControl = cp5.addSlider("subBranchesVariation")
-				.setRange(0, 12)
-		;
+		cp5.addSlider("subBranchesVariation").setRange(0, 12);
+
+		cp5.addSlider("branchLengthBase").setRange(0, 200);
+		cp5.addSlider("branchLengthVariation").setRange(0, 200);
+		cp5.addSlider("branchWidthBase").setRange(0, 100);
+		cp5.addSlider("branchWidthVariation").setRange(0, 100);
+
+		cp5.addSlider("branchLengthScaleBase").setRange(-2, 2);
+		cp5.addSlider("branchLengthScaleVariation").setRange(-2, 2);
+		cp5.addSlider("branchWidthScaleBase").setRange(-2, 2);
+		Controller lastController = cp5.addSlider("branchWidthScaleVariation").setRange(-2, 2);
+
+		appearanceGroup.setBackgroundHeight((int) (lastController.getPosition().y + lastController.getHeight()) + 10);
 
 		Group fileGroup = cp5.addGroup("File")
-				.setBackgroundColor(color(0, 64))
-				;
+				.setBackgroundColor(color(0, 64));
 
 		cp5.begin(fileGroup, 10, 10);
 
@@ -225,7 +240,8 @@ public class SnowMachine extends PApplet
 		background(0);
 		primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
 
-		drawBranches(width / 2, height / 2, armLength, shoulderLength, primaryBranches, getCurrentRecursions());
+		drawBranches(width / 2, height / 2, branchLengthBase + random(branchLengthVariation),
+					 branchWidthBase + random(branchWidthVariation), primaryBranches, getCurrentRecursions());
 
 		if (isAnimated())
 		{
@@ -250,31 +266,32 @@ public class SnowMachine extends PApplet
 		setSeed(millis());
 	}
 
-	public void drawBranches(float x1, float y1, float H, float B, int symmetricalDivisions, int inRecursions)
+	public void drawBranches(float x1, float y1, float branchLength, float branchWidth, int symmetricalDivisions,
+							 int inRecursions)
 	{
 		int[] branchSymmetricalDivisions = new int[inRecursions];
+		float[] branchLengths = new float[inRecursions];
 		float[] branchWidths = new float[inRecursions];
-		float[] branchHeights = new float[inRecursions];
 		float[] branchAlphas = new float[inRecursions];
 
 		branchSymmetricalDivisions[inRecursions - 1] = symmetricalDivisions;
-		branchWidths[inRecursions - 1] = H;
-		branchHeights[inRecursions - 1] = B;
+		branchLengths[inRecursions - 1] = branchLength;
+		branchWidths[inRecursions - 1] = branchWidth;
 		branchAlphas[inRecursions - 1] = 0;
 
 		for (int i = inRecursions - 2; i >= 0; i--)
 		{
-			branchSymmetricalDivisions[i] = PApplet.parseInt(random(subBranchesVariation) + subBranchesBase);
-			branchWidths[i] = branchWidths[i + 1] * random(0.5f, 0.7f);
-			branchHeights[i] = branchHeights[i + 1] * random(0.4f, 0.5f);
-			branchAlphas[i] = random(HALF_PI, PI - HALF_PI / 2);
-//			print(i + ": " + branchSymmetricalDivisions[i] + " " + branchWidths[i] + " " + branchHeights[i] + " " + branchAlphas[i] + "\n");
+			branchSymmetricalDivisions[i] = (int) Math.floor(random(subBranchesVariation + 1) + subBranchesBase);
+			branchLengths[i] = branchLengths[i + 1] * (branchLengthScaleBase + random(branchLengthScaleVariation));
+			branchWidths[i] = branchWidths[i + 1] * (branchWidthScaleBase + random(branchWidthScaleVariation));
+			branchAlphas[i] = random(alphaBase, alphaBase + alphaVariation);
+//			print(i + ": " + branchSymmetricalDivisions[i] + " " + branchLengths[i] + " " + branchWidths[i] + " " + branchAlphas[i] + "\n");
 		}
-		drawBranchesRecursive(x1, y1, branchWidths, branchHeights, branchAlphas, branchSymmetricalDivisions,
+		drawBranchesRecursive(x1, y1, branchLengths, branchWidths, branchAlphas, branchSymmetricalDivisions,
 							  inRecursions);
 	}
 
-	public void drawBranchesRecursive(float branchX, float branchY, float branchWidths[], float branchHeights[],
+	public void drawBranchesRecursive(float branchX, float branchY, float branchLengths[], float branchWidths[],
 									  float branchAlphas[],
 									  int branchSymmetricalDivisions[], int inRecursions)
 	{
@@ -283,17 +300,17 @@ public class SnowMachine extends PApplet
 		{
 			float alpha;
 			if (branchAlphas[inRecursions] == 0)
-				alpha = (TWO_PI - branchAlphas[inRecursions]) / (branchSymmetricalDivisions[inRecursions]);
+				alpha = (TWO_PI) / (branchSymmetricalDivisions[inRecursions]);
 			else
-				alpha = (TWO_PI - branchAlphas[inRecursions]) / (branchSymmetricalDivisions[inRecursions] - 1);
+				alpha = (branchAlphas[inRecursions]) / (branchSymmetricalDivisions[inRecursions] - 1);
 
 			pushMatrix();
 			translate(branchX, branchY);
-			rotate(-(TWO_PI - branchAlphas[inRecursions]) / 2);
+			rotate(-(branchAlphas[inRecursions]) / 2);
 			for (int i = 0; i < branchSymmetricalDivisions[inRecursions]; i++)
 			{
-				rect(0, -branchHeights[inRecursions] / 2, branchWidths[inRecursions], branchHeights[inRecursions]);
-				drawBranchesRecursive(branchWidths[inRecursions], 0, branchWidths, branchHeights, branchAlphas,
+				rect(0, -branchWidths[inRecursions] / 2, branchLengths[inRecursions], branchWidths[inRecursions]);
+				drawBranchesRecursive(branchLengths[inRecursions], 0, branchLengths, branchWidths, branchAlphas,
 									  branchSymmetricalDivisions, inRecursions);
 				rotate(alpha);
 			}
