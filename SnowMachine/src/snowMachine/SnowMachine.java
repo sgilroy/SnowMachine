@@ -28,6 +28,7 @@ public class SnowMachine extends PApplet
 	private int currentRecursions = 1;
 	private int velocity = 1;
 	private boolean isAnimated = true;
+	private boolean isPolygonDrawingEnabled = true;
 
 	ControlP5 cp5;
 
@@ -48,7 +49,8 @@ public class SnowMachine extends PApplet
 		background(0);
 		noStroke();
 		smooth();
-		fill(255);
+//		fill(255);
+		fill(255, 125f);
 		frameRate(29);
 //		drawBranches(width / 2, height / 2, branchLengthBase, branchWidthBase, primaryBranches, recursions);
 		gui();
@@ -115,9 +117,10 @@ public class SnowMachine extends PApplet
 		cp5.addSlider("branchLengthScaleBase").setRange(-2, 2);
 		cp5.addSlider("branchLengthScaleVariation").setRange(-2, 2);
 		cp5.addSlider("branchWidthScaleBase").setRange(-2, 2);
-		Controller lastController = cp5.addSlider("branchWidthScaleVariation").setRange(-2, 2);
+		cp5.addSlider("branchWidthScaleVariation").setRange(-2, 2);
+		Controller lastController = cp5.addToggle("Polygons").plugTo(this, "isPolygonDrawingEnabled").linebreak();
 
-		appearanceGroup.setBackgroundHeight((int) (lastController.getPosition().y + lastController.getHeight()) + 10);
+		appearanceGroup.setBackgroundHeight((int) (lastController.getPosition().y + lastController.getHeight()) + 20);
 
 		Group fileGroup = cp5.addGroup("File")
 				.setBackgroundColor(color(0, 64));
@@ -284,7 +287,7 @@ public class SnowMachine extends PApplet
 			branchSymmetricalDivisions[i] = (int) Math.floor(random(subBranchesVariation + 1) + subBranchesBase);
 			branchLengths[i] = branchLengths[i + 1] * (branchLengthScaleBase + random(branchLengthScaleVariation));
 			branchWidths[i] = branchWidths[i + 1] * (branchWidthScaleBase + random(branchWidthScaleVariation));
-			branchAlphas[i] = random(alphaBase, alphaBase + alphaVariation);
+			branchAlphas[i] = branchSymmetricalDivisions[i] == 1 ? 0 : random(alphaBase, alphaBase + alphaVariation);
 //			print(i + ": " + branchSymmetricalDivisions[i] + " " + branchLengths[i] + " " + branchWidths[i] + " " + branchAlphas[i] + "\n");
 		}
 		drawBranchesRecursive(x1, y1, branchLengths, branchWidths, branchAlphas, branchSymmetricalDivisions,
@@ -309,12 +312,44 @@ public class SnowMachine extends PApplet
 			rotate(-(branchAlphas[inRecursions]) / 2);
 			for (int i = 0; i < branchSymmetricalDivisions[inRecursions]; i++)
 			{
+//				fill(255, 1.0f);
 				rect(0, -branchWidths[inRecursions] / 2, branchLengths[inRecursions], branchWidths[inRecursions]);
+//				fill(255, 0.5f);
+				if (isPolygonDrawingEnabled)
+				{
+					polygon(primaryBranches, branchLengths[inRecursions], 0, branchLengths[inRecursions] / 2);
+				}
 				drawBranchesRecursive(branchLengths[inRecursions], 0, branchLengths, branchWidths, branchAlphas,
 									  branchSymmetricalDivisions, inRecursions);
 				rotate(alpha);
 			}
 			popMatrix();
+		}
+	}
+
+	void polygon(int n, float cx, float cy, float r)
+	{
+		polygon(n, cx, cy, r * 2.0f, r * 2.0f, 0.0f);
+	}
+
+	void polygon(int n, float cx, float cy, float w, float h, float startAngle)
+	{
+		if (n > 2)
+		{
+			float angle = TWO_PI / n;
+
+			/* The horizontal "radius" is one half the width;
+					 the vertical "radius" is one half the height */
+			w = w / 2.0f;
+			h = h / 2.0f;
+
+			beginShape();
+			for (int i = 0; i < n; i++)
+			{
+				vertex(cx + w * cos(startAngle + angle * i),
+					   cy + h * sin(startAngle + angle * i));
+			}
+			endShape(CLOSE);
 		}
 	}
 
