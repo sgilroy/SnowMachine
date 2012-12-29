@@ -216,11 +216,18 @@ public class SnowMachine extends PApplet
 		{
 			public void keyEvent()
 			{
-				cp5.remove("myGroup1");
+				if (cp5.isVisible())
+				{
+					cp5.hide();
+				}
+				else
+				{
+					cp5.show();
+				}
 			}
 		}, '0');
 
-		accordion.open(0, 1, 2);
+		accordion.open();
 
 		// use Accordion.MULTI to allow multiple group
 		// to be open at a time.
@@ -275,7 +282,7 @@ public class SnowMachine extends PApplet
 		stroke(255, 255f * strokeAlpha);
 		primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
 
-		drawBranches(width - height / 2, height / 2, branchLengthBase + random(branchLengthVariation),
+		drawBranches(cp5.isVisible() ? width - height / 2 : width / 2, height / 2, branchLengthBase + random(branchLengthVariation),
 					 branchWidthBase + random(branchWidthVariation), primaryBranches, getCurrentRecursions());
 
 		if (isAnimated())
