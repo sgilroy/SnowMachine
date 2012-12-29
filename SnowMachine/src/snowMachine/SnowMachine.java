@@ -5,6 +5,7 @@ import processing.core.PApplet;
 import processing.core.PFont;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 
 public class SnowMachine extends PApplet
@@ -21,11 +22,11 @@ public class SnowMachine extends PApplet
 	float branchWidthScaleBase = 0.4f;
 	float branchWidthScaleVariation = 0.1f;
 
-	int recursions = 7;       //ilo\u015b\u0107 recursion
+	int maxRecursions = 5;       //ilo\u015b\u0107 recursion
 
 	int primaryBranches = 6;
 	private int seed;
-	private int currentRecursions = 1;
+	private float currentRecursions = 1;
 	private int velocity = 1;
 	private boolean isAnimated = true;
 	private boolean isPolygonDrawingEnabled = true;
@@ -40,19 +41,30 @@ public class SnowMachine extends PApplet
 	private int subBranchesBase = 3;
 	private int subBranchesVariation = 0;
 	private boolean guiInitialized = false;
-	private float alphaVariation = 0; // old value: HALF_PI;
-	private float alphaBase = PI * 2 / 3;
+	private float angleBase = PI * 2 / 3;
+	private float angleVariation = 0; // old value: HALF_PI;
+	private float fillAlpha = 0.5f;
+	private float strokeAlpha = 0.5f;
+	private boolean autoSeed = true;
+	private float recursionsPerMillisecond = 1f / 400;
+	private int previousTime = 0;
+	private static boolean fullScreen = false;
+	private float fractionPolygons = 0.5f;
 
 	public void setup()
 	{
-		size(700, 700);
+		if (fullScreen)
+		{
+			size(displayWidth, displayHeight);
+		}
+		else
+		{
+			size(900, 700);
+		}
+
 		background(0);
-		noStroke();
 		smooth();
-//		fill(255);
-		fill(255, 125f);
 		frameRate(29);
-//		drawBranches(width / 2, height / 2, branchLengthBase, branchWidthBase, primaryBranches, recursions);
 		gui();
 		createValuePropertySet();
 	}
@@ -74,15 +86,22 @@ public class SnowMachine extends PApplet
 		cp5.addToggle("Animate")
 				.setValue(isAnimated())
 				.plugTo(this, "setAnimated")
+		;
+
+		cp5.addToggle("Auto Seed")
+				.setValue(isAutoSeed())
+				.plugTo(this, "setAutoSeed")
 				.linebreak()
 		;
 
+		cp5.addSlider("maxRecursions").setRange(1, 7);
+		cp5.addSlider("recursionsPerMillisecond").setRange(1f / 10000, 1f / 50).setDecimalPrecision(4);
+
 		currentRecursionsSlider = cp5.addSlider("currentRecursions")
-				.setRange(1, recursions);
+				.setRange(0, maxRecursions);
 
 		Group appearanceGroup = cp5.addGroup("Appearance")
 				.setBackgroundColor(color(0, 64))
-//				.setBackgroundHeight(150)
 				;
 
 		cp5.begin(appearanceGroup, 10, 10);
@@ -92,7 +111,7 @@ public class SnowMachine extends PApplet
 		;
 
 		seedSlider = cp5.addSlider("seed")
-				.setRange(0, 100000)
+				.setRange(0, 1000000)
 		;
 
 		cp5.addSlider("primaryBranchesBase")
@@ -118,6 +137,8 @@ public class SnowMachine extends PApplet
 		cp5.addSlider("branchLengthScaleVariation").setRange(-2, 2);
 		cp5.addSlider("branchWidthScaleBase").setRange(-2, 2);
 		cp5.addSlider("branchWidthScaleVariation").setRange(-2, 2);
+
+		cp5.addSlider("fractionPolygons").setRange(0, 1);
 		Controller lastController = cp5.addToggle("Polygons").plugTo(this, "isPolygonDrawingEnabled").linebreak();
 
 		appearanceGroup.setBackgroundHeight((int) (lastController.getPosition().y + lastController.getHeight()) + 20);
@@ -131,11 +152,20 @@ public class SnowMachine extends PApplet
 				.setSize(80, 20)
 		;
 
+		Group renderGroup = cp5.addGroup("render")
+				.setBackgroundColor(color(0, 64));
+
+		cp5.begin(renderGroup, 10, 10);
+
+		cp5.addSlider("fillAlpha").setRange(0, 1);
+		cp5.addSlider("strokeAlpha").setRange(0, 1);
+
 		accordion = cp5.addAccordion("acc")
 				.setPosition(40, 40)
 				.setWidth(250)
 				.addItem(complexityGroup)
 				.addItem(appearanceGroup)
+				.addItem(renderGroup)
 				.addItem(fileGroup)
 		;
 
@@ -172,7 +202,7 @@ public class SnowMachine extends PApplet
 		{
 			public void keyEvent()
 			{
-				accordion.setCollapseMode(ControlP5.ALL);
+				accordion.setCollapseMode(ControlP5.MULTI);
 			}
 		}, '3');
 		cp5.mapKeyFor(new ControlKey()
@@ -241,23 +271,34 @@ public class SnowMachine extends PApplet
 	{
 		randomSeed(getSeed());
 		background(0);
+		fill(255, 255f * fillAlpha);
+		stroke(255, 255f * strokeAlpha);
 		primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
 
-		drawBranches(width / 2, height / 2, branchLengthBase + random(branchLengthVariation),
+		drawBranches(width - height / 2, height / 2, branchLengthBase + random(branchLengthVariation),
 					 branchWidthBase + random(branchWidthVariation), primaryBranches, getCurrentRecursions());
 
 		if (isAnimated())
 		{
-			int newCurrentRecursions = getCurrentRecursions() + velocity;
-			if (newCurrentRecursions > recursions)
+			int currentTime = millis();
+			int timeDelta = currentTime - previousTime;
+			int maximumTimeIncrement = (int)(1 / recursionsPerMillisecond);
+			if (timeDelta > maximumTimeIncrement) timeDelta = maximumTimeIncrement;
+			previousTime = currentTime;
+			float newCurrentRecursions = getCurrentRecursions() + velocity * timeDelta * recursionsPerMillisecond;
+			if (newCurrentRecursions > maxRecursions)
 			{
-				newCurrentRecursions = recursions;
+				newCurrentRecursions = maxRecursions;
 				velocity = -1;
 			}
-			if (newCurrentRecursions < 1)
+			if (newCurrentRecursions < 0)
 			{
-				newCurrentRecursions = 1;
+				newCurrentRecursions = 0;
 				velocity = 1;
+				if (autoSeed)
+				{
+					resetSeed();
+				}
 			}
 			setCurrentRecursions(newCurrentRecursions);
 		}
@@ -265,66 +306,126 @@ public class SnowMachine extends PApplet
 
 	public void resetSeed()
 	{
-//		setCurrentRecursions(isAnimated() ? 1 : recursions);
 		setSeed(millis());
 	}
 
-	public void drawBranches(float x1, float y1, float branchLength, float branchWidth, int symmetricalDivisions,
-							 int inRecursions)
+	public void drawBranches(float x1, float y1, float primaryBranchLength, float primaryBranchWidth, int primaryBranches,
+							 float inRecursions)
 	{
-		int[] branchSymmetricalDivisions = new int[inRecursions];
-		float[] branchLengths = new float[inRecursions];
-		float[] branchWidths = new float[inRecursions];
-		float[] branchAlphas = new float[inRecursions];
+		float levelFraction;
+		levelFraction = getLevelFraction(inRecursions, 0);
 
-		branchSymmetricalDivisions[inRecursions - 1] = symmetricalDivisions;
-		branchLengths[inRecursions - 1] = branchLength;
-		branchWidths[inRecursions - 1] = branchWidth;
-		branchAlphas[inRecursions - 1] = 0;
-
-		for (int i = inRecursions - 2; i >= 0; i--)
+		float spreadAngle = 0;
+		SnowflakeNode rootNode = new SnowflakeNode(
+				getSnowflakeNodeType(), primaryBranches,
+				0, primaryBranchLength * levelFraction, primaryBranchWidth * levelFraction, spreadAngle);
+		ArrayList<SnowflakeNode> currentLevelNodes = new ArrayList<SnowflakeNode>();
+		currentLevelNodes.add(rootNode);
+		for (int i = 0; i < (int)inRecursions; i++)
 		{
-			branchSymmetricalDivisions[i] = (int) Math.floor(random(subBranchesVariation + 1) + subBranchesBase);
-			branchLengths[i] = branchLengths[i + 1] * (branchLengthScaleBase + random(branchLengthScaleVariation));
-			branchWidths[i] = branchWidths[i + 1] * (branchWidthScaleBase + random(branchWidthScaleVariation));
-			branchAlphas[i] = branchSymmetricalDivisions[i] == 1 ? 0 : random(alphaBase, alphaBase + alphaVariation);
-//			print(i + ": " + branchSymmetricalDivisions[i] + " " + branchLengths[i] + " " + branchWidths[i] + " " + branchAlphas[i] + "\n");
+			levelFraction = getLevelFraction(inRecursions, i + 1);
+
+			ArrayList<SnowflakeNode> nextLevelNodes = new ArrayList<SnowflakeNode>();
+			for (SnowflakeNode currentNode : currentLevelNodes)
+			{
+				float tipWidth = 0;
+				int remainingBranches = primaryBranches;
+				while (remainingBranches > 0)
+				{
+					int divisions = Math.min(remainingBranches,
+											 (int) Math.floor(random(subBranchesVariation + 1) + subBranchesBase));
+					remainingBranches -= divisions;
+
+					boolean evenDivisions = divisions % 2 == 0;
+					float branchOffset = evenDivisions ? currentNode.getBranchLength() * random(1f) : currentNode.getBranchLength();
+
+					float branchWidth = currentNode.getBranchWidth() * (branchWidthScaleBase + random(
+							branchWidthScaleVariation)) * levelFraction;
+
+					if (!evenDivisions)
+					{
+						tipWidth = Math.max(tipWidth, branchWidth);
+					}
+
+					nextLevelNodes.add(currentNode.addNode(new SnowflakeNode(
+							getSnowflakeNodeType(), divisions,
+							branchOffset, currentNode.getBranchLength() * (branchLengthScaleBase + random(branchLengthScaleVariation)) * levelFraction,
+							branchWidth,
+							divisions == 1 ? 0 : random(angleBase, angleBase + angleVariation)
+					)));
+				}
+				currentNode.setTipWidth(tipWidth);
+			}
+			currentLevelNodes = nextLevelNodes;
 		}
-		drawBranchesRecursive(x1, y1, branchLengths, branchWidths, branchAlphas, branchSymmetricalDivisions,
-							  inRecursions);
+
+		drawNodeBranchesRecursive(x1, y1, rootNode, (int)Math.ceil(inRecursions));
 	}
 
-	public void drawBranchesRecursive(float branchX, float branchY, float branchLengths[], float branchWidths[],
-									  float branchAlphas[],
-									  int branchSymmetricalDivisions[], int inRecursions)
+	private float getLevelFraction(float inRecursions, int i)
+	{
+		float levelFraction = inRecursions - i;
+		if (levelFraction > 1) levelFraction = 1;
+		return levelFraction;
+	}
+
+	private SnowflakeNodeType getSnowflakeNodeType()
+	{
+		int i = Math.round(fractionPolygons * 0.5f + random(0.5f));
+		if (isPolygonDrawingEnabled)
+		{
+			return SnowflakeNodeType.values()[i];
+		}
+		else
+			return SnowflakeNodeType.RECTANGLES;
+	}
+
+	private void drawNodeBranchesRecursive(float branchX, float branchY, SnowflakeNode node, int inRecursions)
 	{
 		inRecursions--;
-		if (inRecursions + 1 > 0 && branchSymmetricalDivisions[inRecursions] != 0)
+		if (node.getSymmetricalDivisions() != 0)
 		{
 			float alpha;
-			if (branchAlphas[inRecursions] == 0)
-				alpha = (TWO_PI) / (branchSymmetricalDivisions[inRecursions]);
+			if (node.getSpreadAngle() == 0)
+				alpha = (TWO_PI) / (node.getSymmetricalDivisions());
 			else
-				alpha = (branchAlphas[inRecursions]) / (branchSymmetricalDivisions[inRecursions] - 1);
+				alpha = (node.getSpreadAngle()) / (node.getSymmetricalDivisions() - 1);
 
 			pushMatrix();
 			translate(branchX, branchY);
-			rotate(-(branchAlphas[inRecursions]) / 2);
-			for (int i = 0; i < branchSymmetricalDivisions[inRecursions]; i++)
+			if (node.getType() == SnowflakeNodeType.POLYGON)
 			{
-//				fill(255, 1.0f);
-				rect(0, -branchWidths[inRecursions] / 2, branchLengths[inRecursions], branchWidths[inRecursions]);
-//				fill(255, 0.5f);
-				if (isPolygonDrawingEnabled)
+				polygon(getPolygonSides(node), 0, 0, node.getBranchLength());
+			}
+			rotate(-(node.getSpreadAngle()) / 2);
+			for (int i = 0; i < node.getSymmetricalDivisions(); i++)
+			{
+				if (node.getType() == SnowflakeNodeType.RECTANGLES)
 				{
-					polygon(primaryBranches, branchLengths[inRecursions], 0, branchLengths[inRecursions] / 2);
+//					rect(0, -node.getBranchWidth() / 2, node.getBranchLength(), node.getBranchWidth());
+
+					beginShape();
+					vertex(0, -node.getBranchWidth() / 2);
+					vertex(node.getBranchLength(), -node.getTipWidth() / 2);
+					vertex(node.getBranchLength(), +node.getTipWidth() / 2);
+					vertex(0, +node.getBranchWidth() / 2);
+					endShape(CLOSE);
 				}
-				drawBranchesRecursive(branchLengths[inRecursions], 0, branchLengths, branchWidths, branchAlphas,
-									  branchSymmetricalDivisions, inRecursions);
+
+				for (SnowflakeNode childNode : node.getChildNodes())
+				{
+					drawNodeBranchesRecursive(childNode.getBranchOffset(), 0, childNode, inRecursions);
+				}
 				rotate(alpha);
 			}
 			popMatrix();
 		}
+	}
+
+	private int getPolygonSides(SnowflakeNode node)
+	{
+//		return node.getSymmetricalDivisions();
+		return primaryBranches;
 	}
 
 	void polygon(int n, float cx, float cy, float r)
@@ -353,16 +454,18 @@ public class SnowMachine extends PApplet
 		}
 	}
 
-	static public void main(String[] passedArgs)
+	static public void main(String[] args)
 	{
-		String[] appletArgs = new String[]{"snowMachine.SnowMachine"};
-		if (passedArgs != null)
+		if (args.length > 0 && args[0].equals("--present"))
 		{
-			PApplet.main(concat(appletArgs, passedArgs));
-		} else
-		{
-			PApplet.main(appletArgs);
+			fullScreen = true;
+			PApplet.main(new String[]{"--present", "snowMachine.SnowMachine"});
 		}
+		else
+		{
+			PApplet.main(new String[]{"snowMachine.SnowMachine"});
+		}
+
 	}
 
 	public boolean isAnimated()
@@ -373,18 +476,15 @@ public class SnowMachine extends PApplet
 	public void setAnimated(boolean animated)
 	{
 		isAnimated = animated;
-		if (!isAnimated())
-		{
-			setCurrentRecursions(recursions);
-		}
+		previousTime = millis();
 	}
 
-	public int getCurrentRecursions()
+	public float getCurrentRecursions()
 	{
 		return currentRecursions;
 	}
 
-	public void setCurrentRecursions(int currentRecursions)
+	public void setCurrentRecursions(float currentRecursions)
 	{
 		this.currentRecursions = currentRecursions;
 		if (currentRecursionsSlider != null)
@@ -405,5 +505,15 @@ public class SnowMachine extends PApplet
 		{
 			seedSlider.setValue(seed);
 		}
+	}
+
+	public boolean isAutoSeed()
+	{
+		return autoSeed;
+	}
+
+	public void setAutoSeed(boolean autoSeed)
+	{
+		this.autoSeed = autoSeed;
 	}
 }
