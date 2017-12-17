@@ -1,2 +1,4 @@
-settings.ser
-*.ser
+/bin
+
+/.idea/workspace.xml
+/.idea/compiler.xml
