@@ -430,7 +430,10 @@ public class SnowMachine extends PApplet
 				randomSeed(getSeed() + count);
 				fill(255, 255f * fillAlpha);
 				stroke(255, 255f * strokeAlpha);
-				primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
+				// the first call to get a pseudo random number seems to not be very random, so ignore it
+				float throwAwayRandom = random(1);
+				float branchesVariationRandom = random(primaryBranchesVariation);
+				primaryBranches = primaryBranchesBase + Math.round(branchesVariationRandom);
 
 				drawBranches(
 						diameter * (c + 0.5f),
