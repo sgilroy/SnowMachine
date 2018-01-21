@@ -60,6 +60,10 @@ public class SnowMachine extends PApplet
 	private float fractionPolygons = 0.3f;
 	private boolean linearAnimation = false;
 
+	private boolean useGrid = false;
+	private int gridRows = 3;
+	private int gridColumns = 3;
+
 	public void setup()
 	{
 		if (fullScreen)
@@ -113,11 +117,12 @@ public class SnowMachine extends PApplet
 				.linebreak()
 		;
 
-		cp5.addSlider("maxRecursions").setRange(1, 7).setCaptionLabel("Recursions Max");
+		final int maxRecursionsLimit = 7;
+		cp5.addSlider("maxRecursions").setRange(1, maxRecursionsLimit).setCaptionLabel("Recursions Max");
 		cp5.addSlider("recursionsPerMillisecond").setRange(1f / 10000, 1f / 50).setDecimalPrecision(4).setCaptionLabel("  Speed");
 
 		currentRecursionsSlider = cp5.addSlider("currentRecursions")
-				.setRange(0, maxRecursions).setCaptionLabel("  Current");
+				.setRange(0, maxRecursionsLimit).setCaptionLabel("  Current");
 
 		Group appearanceGroup = cp5.addGroup("Appearance")
 				.setBackgroundColor(color(0, 64))
@@ -161,8 +166,8 @@ public class SnowMachine extends PApplet
 
 		cp5.addSlider("midBranchesVariation").setRange(0, 12).setCaptionLabel("  Variation");
 
-		cp5.addSlider("branchLengthBase").setRange(0, 200).setCaptionLabel("Length");
-		cp5.addSlider("branchLengthVariation").setRange(0, 200).setCaptionLabel("  Variation");
+		cp5.addSlider("branchLengthBase").setRange(0, 400).setCaptionLabel("Length");
+		cp5.addSlider("branchLengthVariation").setRange(0, 400).setCaptionLabel("  Variation");
 		cp5.addSlider("branchWidthBase").setRange(0, 100).setCaptionLabel("Width");
 		cp5.addSlider("branchWidthVariation").setRange(0, 100).setCaptionLabel("  Variation");
 
@@ -196,9 +201,14 @@ public class SnowMachine extends PApplet
 
 		cp5.addSlider("fillAlpha").setRange(0, 1).setCaptionLabel("Fill");
 		cp5.addSlider("strokeAlpha").setRange(0, 1).setCaptionLabel("Stroke");
+		cp5.addToggle("toggleGrid").setCaptionLabel("Grid")
+				.setValue(isUseGrid())
+				.plugTo(this, "setUseGrid");
+		cp5.addSlider(grid, "0", "rows").setRange(1, 20).setCaptionLabel("Rows").plugTo(grid, "update");
+		cp5.addSlider(grid, "0", "columns").setRange(1, 20).setCaptionLabel("Columns").plugTo(grid, "update");
 
 		accordion = cp5.addAccordion("acc")
-				.setPosition(40, 40)
+				.setPosition(10, 10)
 				.setWidth(250)
 				.addItem(complexityGroup)
 				.addItem(appearanceGroup)
@@ -238,7 +248,7 @@ public class SnowMachine extends PApplet
 		{
 			public void keyEvent()
 			{
-				setCurrentRecursions(min((float) (Math.floor(currentRecursions) + 1), 7));
+				setCurrentRecursions(min((float) (Math.floor(currentRecursions) + 1), maxRecursionsLimit));
 			}
 		}, KeyEvent.VK_UP);
 		cp5.mapKeyFor(new ControlKey()
@@ -337,7 +347,8 @@ public class SnowMachine extends PApplet
 
 	public void pdf()
 	{
-		PGraphicsPDF pdf = (PGraphicsPDF) createGraphics(width, height, PDF, "snowflake-" + getSeed() + ".pdf");
+		String name = "snowflake-" + getSeed() + (useGrid ? "-grid-" + grid.columns + "x" + grid.rows : "");
+		PGraphicsPDF pdf = (PGraphicsPDF) createGraphics(width, height, PDF, name + ".pdf");
 		pdf.beginDraw();
 		beginRecord(pdf);
 		drawSnowflake();
@@ -394,7 +405,7 @@ public class SnowMachine extends PApplet
 				velocity = -velocity;
 				if (autoSeed)
 				{
-					resetSeed();
+					incrementSeed();
 					setCurrentRecursions(maxRecursions);
 					if (autoPdf) {
 						pdf();
@@ -406,14 +417,31 @@ public class SnowMachine extends PApplet
 	}
 
 	private void drawSnowflake() {
-		randomSeed(getSeed());
 		background(0);
-		fill(255, 255f * fillAlpha);
-		stroke(255, 255f * strokeAlpha);
-		primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
+		int count = 0;
+		pushMatrix();
+		int accordionWidthPadded = cp5.isVisible() ? accordion.getWidth() + 30 : 0;
+		translate(accordionWidthPadded, 0);
+		float availableWidth = width - accordionWidthPadded;
+		float diameter = min(availableWidth, height);
+		scale(1f / max(grid.rows, grid.columns));
+		for (int r = 0; r < grid.rows; r++) {
+			for (int c = 0; c < grid.columns; c++) {
+				randomSeed(getSeed() + count);
+				fill(255, 255f * fillAlpha);
+				stroke(255, 255f * strokeAlpha);
+				primaryBranches = primaryBranchesBase + Math.round(random(primaryBranchesVariation));
 
-		drawBranches(cp5.isVisible() ? width - height / 2 : width / 2, height / 2, branchLengthBase + random(branchLengthVariation),
-					 branchWidthBase + random(branchWidthVariation), primaryBranches, getCurrentRecursions());
+				drawBranches(
+						diameter * (c + 0.5f),
+						diameter * (r + 0.5f),
+						branchLengthBase + random(branchLengthVariation),
+						branchWidthBase + random(branchWidthVariation),
+						primaryBranches, getCurrentRecursions());
+				count++;
+			}
+		}
+		popMatrix();
 	}
 
 	public void resetSeed()
@@ -423,12 +451,12 @@ public class SnowMachine extends PApplet
 
 	public void decrementSeed()
 	{
-		setSeed(getSeed() - 1);
+		setSeed(getSeed() - grid.getTotal());
 	}
 
 	public void incrementSeed()
 	{
-		setSeed(getSeed() + 1);
+		setSeed(getSeed() + grid.getTotal());
 	}
 
 	public void drawBranches(float x1, float y1, float primaryBranchLength, float primaryBranchWidth, int primaryBranches,
@@ -748,6 +776,11 @@ public class SnowMachine extends PApplet
 		return autoPdf;
 	}
 
+	public boolean isUseGrid()
+	{
+		return useGrid;
+	}
+
 	public void setAutoSeed(boolean autoSeed)
 	{
 		this.autoSeed = autoSeed;
@@ -759,5 +792,17 @@ public class SnowMachine extends PApplet
 	public void setAutoPdf(boolean autoPdf)
 	{
 		this.autoPdf = autoPdf;
+	}
+	public void setUseGrid(boolean value)
+	{
+		this.useGrid = value;
+		updateGrid();
+	}
+
+	private Grid grid = new Grid();
+	private void updateGrid() {
+		grid.rows = useGrid ? gridRows : 1;
+		grid.columns = useGrid ? gridColumns : 1;
+		grid.update();
 	}
 }
