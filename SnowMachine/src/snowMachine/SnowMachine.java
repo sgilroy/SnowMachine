@@ -61,8 +61,6 @@ public class SnowMachine extends PApplet
 	private boolean linearAnimation = false;
 
 	private boolean useGrid = false;
-	private int gridRows = 3;
-	private int gridColumns = 3;
 
 	public void setup()
 	{
@@ -347,7 +345,7 @@ public class SnowMachine extends PApplet
 
 	public void pdf()
 	{
-		String name = "snowflake-" + getSeed() + (useGrid ? "-grid-" + grid.columns + "x" + grid.rows : "");
+		String name = "snowflake-" + getSeed() + (useGrid ? "-grid-" + getColumns() + "x" + getRows() : "");
 		PGraphicsPDF pdf = (PGraphicsPDF) createGraphics(width, height, PDF, name + ".pdf");
 		pdf.beginDraw();
 		beginRecord(pdf);
@@ -424,9 +422,9 @@ public class SnowMachine extends PApplet
 		translate(accordionWidthPadded, 0);
 		float availableWidth = width - accordionWidthPadded;
 		float diameter = min(availableWidth, height);
-		scale(1f / max(grid.rows, grid.columns));
-		for (int r = 0; r < grid.rows; r++) {
-			for (int c = 0; c < grid.columns; c++) {
+		scale(1f / max(getRows(), getColumns()));
+		for (int r = 0; r < getRows(); r++) {
+			for (int c = 0; c < getColumns(); c++) {
 				randomSeed(getSeed() + count);
 				fill(255, 255f * fillAlpha);
 				stroke(255, 255f * strokeAlpha);
@@ -447,19 +445,31 @@ public class SnowMachine extends PApplet
 		popMatrix();
 	}
 
-	public void resetSeed()
+    private int getColumns() {
+        return useGrid ? grid.columns : 1;
+    }
+
+    private int getRows() {
+        return useGrid ? grid.rows : 1;
+    }
+
+    public void resetSeed()
 	{
 		setSeed(millis());
 	}
 
+    private int getTotalSnowflakes() {
+        return useGrid ? grid.getTotal() : 1;
+    }
+
 	public void decrementSeed()
 	{
-		setSeed(getSeed() - grid.getTotal());
+		setSeed(getSeed() - getTotalSnowflakes());
 	}
 
-	public void incrementSeed()
+    public void incrementSeed()
 	{
-		setSeed(getSeed() + grid.getTotal());
+		setSeed(getSeed() + getTotalSnowflakes());
 	}
 
 	public void drawBranches(float x1, float y1, float primaryBranchLength, float primaryBranchWidth, int primaryBranches,
@@ -799,13 +809,10 @@ public class SnowMachine extends PApplet
 	public void setUseGrid(boolean value)
 	{
 		this.useGrid = value;
-		updateGrid();
 	}
 
 	private Grid grid = new Grid();
 	private void updateGrid() {
-		grid.rows = useGrid ? gridRows : 1;
-		grid.columns = useGrid ? gridColumns : 1;
 		grid.update();
 	}
 }
